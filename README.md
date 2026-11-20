@@ -16,6 +16,7 @@
 | `scripts/run_pg16_round.py` | 在 PostgreSQL 16 上执行完整空库/种子库升级降级轮次 |
 | `scripts/export_pg_ddl.py` | 导出最终 PostgreSQL DDL 到 `artifacts/schema-postgres.sql` |
 | `scripts/reverse_drill.py` | 反向变异验证测试确实能捕获约束缺失 |
+| `docs/INTEGRATION.md` | 与 #1839 合并时的已知冲突、必须修改的三处与验证命令 |
 
 ## 字段
 
@@ -82,7 +83,9 @@
 
 ## 外部依赖说明
 
-`acad_course` 由兄弟任务 #1839 拥有，真实表包含多列。本任务不创建、不修改该业务表；`app/academy/models.py` 中的 `acad_course = Table(...)` 只是 SQLAlchemy metadata 的 FK 解析桩，`alembic/env.py` 的 `include_object` 将其排除在 autogenerate 之外。迁移为了能在空库独立执行，会先 `CREATE TABLE IF NOT EXISTS acad_course (id UUID PRIMARY KEY)`；若真实表已存在则不会覆盖。downgrade 只删除 `acad_course_session`，保留 `acad_course`，避免毁掉兄弟任务的数据。
+`acad_course` 由兄弟任务 #1839 拥有，真实表包含多列。本任务**不拥有**该业务表：`app/academy/models.py` 中的 `acad_course = Table(...)` 只是 SQLAlchemy metadata 的 FK 解析桩，`alembic/env.py` 的 `include_object` 将其排除在 autogenerate 之外。迁移为了能在空库独立执行，会先 `CREATE TABLE IF NOT EXISTS acad_course (id UUID PRIMARY KEY)`；若真实表已存在则不会覆盖。downgrade 只删除 `acad_course_session`，保留 `acad_course`，避免毁掉兄弟任务的数据。
+
+**集成注意**：本仓库与 #1839 都是独立根 revision；直接合并会多 head，且本仓库先执行时会让 #1839 的 `op.create_table` 因表已存在而失败。合并方必须先把 revision 串成单链、删除本仓库的建桩语句，并替换 ORM 桩为 #1839 的映射类。详见 `docs/INTEGRATION.md`。
 
 ## 运行
 
@@ -125,4 +128,5 @@ python scripts/reverse_drill.py
 - 软删除不释放 `(course_id, session_no)` 唯一名额；任务未要求重建同一期次，按全量唯一处理。
 - `updated_at` 的自动更新由 ORM `onupdate` 提供，不是数据库触发器。
 - `acad_course` 是外部依赖；本仓库的 stub 只用于 FK 解析和空库迁移，不声明其真实列。
+- 两个独立仓库不能直接合并：多 head、重复建表、ORM `Table` 冲突均为已知边界，处理步骤见 `docs/INTEGRATION.md`。
 - 测试覆盖约束与迁移，不覆盖并发下的竞态；唯一性最终由数据库约束保证。
