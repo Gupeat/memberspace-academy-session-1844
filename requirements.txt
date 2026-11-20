@@ -1,0 +1,4 @@
+SQLAlchemy>=2.0,<2.2
+alembic>=1.13,<2
+pytest>=8
+psycopg2-binary>=2.9
