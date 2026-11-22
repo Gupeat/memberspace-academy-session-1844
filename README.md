@@ -17,6 +17,7 @@
 | `scripts/export_pg_ddl.py` | 导出最终 PostgreSQL DDL 到 `artifacts/schema-postgres.sql` |
 | `scripts/reverse_drill.py` | 反向变异验证测试确实能捕获约束缺失 |
 | `docs/INTEGRATION.md` | 与 #1839 合并时的已知冲突、必须修改的三处与验证命令 |
+| `artifacts/` | 验收汇总、SQLite/PG16 运行日志、PostgreSQL DDL、反向变异记录；说明见 `artifacts/README.md` |
 
 ## 字段
 
@@ -94,16 +95,21 @@
 ```powershell
 python -m pip install -r requirements.txt
 
-# SQLite 快速验证
+# SQLite 快速回归（未设置 TEST_DATABASE_URL 时使用临时 SQLite）
 $env:ACADEMY_DB_URL = "sqlite:///./acad_sessions.db"
 python -m alembic upgrade head
 python -m pytest -q tests
 
-# PostgreSQL 16 两轮（127.0.0.1:55432，自动建库 clawhunt_1844）
+# PostgreSQL 16 全套（先启动 127.0.0.1:55432 的实例）
+$env:TEST_DATABASE_URL = "postgresql+psycopg2://postgres@127.0.0.1:55432/clawhunt_1844"
+$env:ACADEMY_DB_URL = $env:TEST_DATABASE_URL
+python -m pytest -q tests
+
+# 两轮可复现证据（自动建库 clawhunt_1844）
 python scripts/run_pg16_round.py --label round1
 python scripts/run_pg16_round.py --label round2
 
-# 验收与证据
+# 验收、DDL 与变异演练
 python scripts/run_acceptance.py
 python scripts/export_pg_ddl.py
 python scripts/reverse_drill.py
@@ -111,16 +117,25 @@ python scripts/reverse_drill.py
 
 ## 验收结果
 
-- SQLite / PostgreSQL 测试：**20 passed**。
-- PostgreSQL 16.15 两轮：round1 2026-11-20T15:38:03Z、round2 2026-11-20T15:38:41Z，均 Overall PASS。
+- **SQLite 快速回归**：未设置 `TEST_DATABASE_URL`，**20 passed**；这是日常回归口径。
+- **PostgreSQL 16.15 两轮**：round1 2026-11-22T04:09:25Z、round2 2026-11-22T04:09:55Z，均 Overall PASS；每轮 28 步、全部 exit 0，测试 **20 passed**。
   - 空库 upgrade → 1 张 session 表、23 列、13 CHECK → downgrade 后 session 0 行、acad_course 保留 → 再次 upgrade PASS。
   - 种子库（2 个 course、1 个 session）upgrade → downgrade 后 session 表消失、course 仍 2 行 → 再次 upgrade 后 session 表恢复、course 仍 2 行。
   - 两轮均执行 `alembic check`，无模型/迁移漂移。
+  - 每轮包含专用的 `pytest-seeded-pg16` 步骤：`seeded cycle database: postgresql`、`1 passed`，证明 seeded 用例确实运行在 PostgreSQL，而不是 SQLite。
 - AC1：`end_at <= start_at` 与 `signup_close_at > start_at` 插入均被数据库拒绝。
 - AC2：同课程重复 `session_no` 被联合唯一约束拒绝；不同课程可重复。
-- AC3：空库与种子库 upgrade/downgrade 均成功，downgrade 保留 `acad_course`。
+- AC3：有 `TEST_DATABASE_URL` 时 seeded 用例读取配置库；未配置时使用临时 SQLite；空库与种子库 upgrade/downgrade 均成功，downgrade 保留 `acad_course`。
 - 反向变异：A 将 `end_at > start_at` 放宽为 `>=`、B 删除 `(course_id, session_no)` 唯一约束，测试均失败（DETECTED）。
 - DDL：`artifacts/schema-postgres.sql`，含 13 CHECK、2 UNIQUE、2 索引、FK。
+
+证据文件：
+
+- `artifacts/ACCEPTANCE.md`、`artifacts/ACCEPTANCE.json`、`artifacts/pytest.log`
+- `artifacts/pg16/round1/SUMMARY.md`、`artifacts/pg16/round2/SUMMARY.md` 及每轮 28 个步骤日志
+- `artifacts/schema-postgres.sql`
+- `artifacts/reverse-drill.log`
+- 产物说明见 `artifacts/README.md`。
 
 ## 限制
 

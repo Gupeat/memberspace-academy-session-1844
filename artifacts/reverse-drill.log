@@ -1,0 +1,12 @@
+# Reverse drill · #1844
+
+- A_end_at_allows_equal: DETECTED (exit 1)
+  =========================== short test summary info ===========================
+  FAILED tests/test_constraints.py::test_end_at_must_be_after_start_at - Failed...
+  1 failed, 14 deselected in 0.67s
+- B_drop_course_session_unique: DETECTED (exit 1)
+  =========================== short test summary info ===========================
+  FAILED tests/test_constraints.py::test_duplicate_session_no_same_course_rejected
+  1 failed, 14 deselected in 0.65s
+
+Overall: PASS

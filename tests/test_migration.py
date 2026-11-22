@@ -11,7 +11,7 @@ from sqlalchemy import create_engine, inspect, select, text
 
 from app.academy.models import AcadCourseSession
 from app.db import create_db_engine
-from tests.helpers import new_uuid, seed_course, session_values
+from tests.helpers import seed_course, session_values
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -95,20 +95,34 @@ def test_alembic_check_has_no_drift(engine, database_url):
     assert "No new upgrade operations detected." in output
 
 
-def test_seeded_upgrade_downgrade_cycle(tmp_path, monkeypatch):
-    url = "sqlite:///" + str(tmp_path / "seeded.db")
-    config = Config(str(REPO_ROOT / "alembic.ini"))
-    config.set_main_option("script_location", str(REPO_ROOT / "alembic"))
-    config.set_main_option("sqlalchemy.url", url)
+def test_seeded_upgrade_downgrade_cycle(
+    tmp_path, monkeypatch, database_url, alembic_config
+):
+    configured_url = os.environ.get("TEST_DATABASE_URL")
+    if configured_url:
+        url = database_url
+        config = alembic_config
+    else:
+        url = "sqlite:///" + str(tmp_path / "seeded.db")
+        config = Config(str(REPO_ROOT / "alembic.ini"))
+        config.set_main_option("script_location", str(REPO_ROOT / "alembic"))
+        config.set_main_option("sqlalchemy.url", url)
+
     monkeypatch.setenv("ACADEMY_DB_URL", url)
     engine = create_db_engine(url)
 
     with engine.begin() as connection:
+        if engine.dialect.name == "postgresql":
+            connection.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
+            connection.execute(text("CREATE SCHEMA public"))
+        else:
+            connection.execute(text("DROP TABLE IF EXISTS acad_course_session"))
+            connection.execute(text("DROP TABLE IF EXISTS acad_course"))
+            connection.execute(text("DROP TABLE IF EXISTS alembic_version"))
         connection.execute(text("CREATE TABLE acad_course (id UUID PRIMARY KEY)"))
-        seed_id = new_uuid()
-        connection.execute(
-            text("INSERT INTO acad_course (id) VALUES (:id)"), {"id": seed_id.hex}
-        )
+
+    seed_id = seed_course(engine)
+    print(f"seeded cycle database: {engine.dialect.name}")
 
     command.upgrade(config, "head")
     with engine.begin() as connection:

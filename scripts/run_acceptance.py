@@ -13,6 +13,10 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS = REPO_ROOT / "artifacts"
 PYTHON = sys.executable
+PG_EVIDENCE = [
+    "artifacts/pg16/round1/SUMMARY.md",
+    "artifacts/pg16/round2/SUMMARY.md",
+]
 
 
 def redact(text: str, tmp: str) -> str:
@@ -53,7 +57,8 @@ def main() -> int:
 
     def step(name: str, args: list[str]) -> int:
         code, output = run(args, env, tmp)
-        command_text = redact(" ".join(args), tmp)
+        display_args = ["python" if arg == PYTHON else arg for arg in args]
+        command_text = redact(" ".join(display_args), tmp)
         steps.append({"name": name, "command": command_text, "exit": code})
         logs.append(f"$ {name}\n" + command_text + "\n" + output)
         return code
@@ -86,6 +91,8 @@ def main() -> int:
         "ac2": not any(ac2),
         "ac3": not any(ac3),
         "full": full == 0,
+        "database": "sqlite-quick",
+        "postgresql_evidence": PG_EVIDENCE,
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "steps": steps,
     }
@@ -94,12 +101,12 @@ def main() -> int:
         "# Acceptance report · #1844",
         "",
         f"- Generated: {summary['generated_at']}",
-        "- Database: SQLite (quick regression); PostgreSQL evidence in artifacts/pg16/",
-        f"- Tests: {passed} passed",
+        "- Database: SQLite quick regression (when TEST_DATABASE_URL is unset)",
+        f"- SQLite quick regression tests: {passed} passed",
         f"- AC1 end_at / signup_close constraints: {'PASS' if summary['ac1'] else 'FAIL'}",
         f"- AC2 session_no uniqueness: {'PASS' if summary['ac2'] else 'FAIL'}",
-        f"- AC3 upgrade/downgrade (empty, seeded, no drift): {'PASS' if summary['ac3'] else 'FAIL'}",
-        f"- Full regression: {'PASS' if summary['full'] else 'FAIL'}",
+        f"- AC3 SQLite quick upgrade/downgrade (empty, seeded, no drift): {'PASS' if summary['ac3'] else 'FAIL'}",
+        f"- SQLite quick full regression: {'PASS' if summary['full'] else 'FAIL'}",
         "",
         "## Commands and results",
         "",
@@ -108,7 +115,26 @@ def main() -> int:
     ]
     for item in steps:
         lines.append(f"| {item['name']} | {item['exit']} |")
-    lines += ["", "## Evidence", "", "See artifacts/pytest.log, artifacts/ACCEPTANCE.json and artifacts/pg16/.", ""]
+    lines += [
+        "",
+        "## PostgreSQL 16 evidence",
+        "",
+        "The seeded migration test now follows TEST_DATABASE_URL; each PG16 round runs a",
+        "dedicated pytest-seeded-pg16 step that asserts seeded cycle database: postgresql",
+        "and 1 passed.",
+        "",
+        "- round1: artifacts/pg16/round1/SUMMARY.md",
+        "- round2: artifacts/pg16/round2/SUMMARY.md",
+        "",
+        "## Evidence",
+        "",
+        "- artifacts/pytest.log: SQLite quick regression output",
+        "- artifacts/ACCEPTANCE.json: structured quick-regression summary",
+        "- artifacts/pg16/: PostgreSQL 16 two-round logs, including the dedicated seeded test",
+        "- artifacts/schema-postgres.sql: PostgreSQL DDL exported after upgrade",
+        "- artifacts/reverse-drill.log: mutation-detection drill",
+        "",
+    ]
     (ARTIFACTS / "ACCEPTANCE.md").write_text("\n".join(lines), encoding="utf-8")
     (ARTIFACTS / "ACCEPTANCE.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(summary, ensure_ascii=False))

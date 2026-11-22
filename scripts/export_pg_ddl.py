@@ -52,8 +52,8 @@ def main() -> int:
     dumped = run([str(PG_DUMP), "-h", "127.0.0.1", "-p", "55432", "-U", "postgres",
                   "--schema-only", "--no-owner", "--no-privileges", DB], env, check=True)
     out = ARTIFACTS / "schema-postgres.sql"
-    out.write_text(dumped.stdout, encoding="utf-8")
-    print(f"wrote {out.relative_to(REPO_ROOT).as_posix()} ({len(dumped.stdout.encode('utf-8'))} bytes)")
+    out.write_text(dumped.stdout, encoding="utf-8", newline="\n")
+    print(f"wrote {out.relative_to(REPO_ROOT).as_posix()} ({out.stat().st_size} bytes)")
     return 0
 
 

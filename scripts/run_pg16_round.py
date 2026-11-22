@@ -75,6 +75,11 @@ def main() -> int:
 
     out_dir = REPO_ROOT / "artifacts" / "pg16" / args.label
     out_dir.mkdir(parents=True, exist_ok=True)
+    for old_log in out_dir.glob("*.log"):
+        old_log.unlink()
+    old_summary = out_dir / "SUMMARY.md"
+    if old_summary.exists():
+        old_summary.unlink()
     env = os.environ.copy()
     env["PATH"] = str(PG_BIN) + os.pathsep + env.get("PATH", "")
     env["ACADEMY_DB_URL"] = PG_URL
@@ -169,6 +174,25 @@ def main() -> int:
 
     code, out = run([sys.executable, "-m", "pytest", "tests"], env)
     record("pytest", code, out)
+    code, out = run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "-s",
+            "tests/test_migration.py",
+            "-k",
+            "seeded_upgrade_downgrade_cycle",
+        ],
+        env,
+    )
+    record("pytest-seeded-pg16", code, out)
+    seeded_pytest_ok = (
+        code == 0
+        and "seeded cycle database: postgresql" in out
+        and "1 passed" in out
+    )
     alembic_step("upgrade-after-tests", "upgrade head")
     alembic_step("check-after-tests", "check")
     psql_step(
@@ -195,7 +219,14 @@ def main() -> int:
     )
     all_steps_ok = all(code == 0 for _, code, _ in steps)
     check_ok = any(name.startswith("check") and code == 0 for name, code, _ in steps)
-    ok = all_steps_ok and check_ok and empty_ok and seeded_ok and passed > 0
+    ok = (
+        all_steps_ok
+        and check_ok
+        and empty_ok
+        and seeded_ok
+        and seeded_pytest_ok
+        and passed > 0
+    )
 
     summary = [
         f"# PostgreSQL 16 acceptance · {args.label}",
@@ -206,6 +237,7 @@ def main() -> int:
         f"- Empty-DB upgrade/downgrade: {'PASS' if empty_ok else 'FAIL'}",
         f"- Seeded-DB upgrade/downgrade: {'PASS' if seeded_ok else 'FAIL'}",
         f"- Alembic check: {'PASS' if check_ok else 'FAIL'}",
+        f"- Seeded test on PostgreSQL: {'PASS' if seeded_pytest_ok else 'FAIL'}",
         f"- Overall: {'PASS' if ok else 'FAIL'}",
         "",
         "## Steps",
@@ -215,7 +247,13 @@ def main() -> int:
     ]
     for index, (name, code, _) in enumerate(steps):
         summary.append(f"| {index} | {name} | {code} |")
-    summary += ["", "## Evidence", "", "Logs 00-21 in this directory; pytest.log in artifacts/ is the combined acceptance log.", ""]
+    summary += [
+        "",
+        "## Evidence",
+        "",
+        f"Logs 00-{len(steps)-1:02d} in this directory; pytest.log in artifacts/ is the combined acceptance log.",
+        "",
+    ]
     (out_dir / "SUMMARY.md").write_text("\n".join(summary), encoding="utf-8")
     print("\n".join(summary))
     return 0 if ok else 1

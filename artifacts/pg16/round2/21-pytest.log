@@ -1,0 +1,10 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.14, pytest-9.2.0, pluggy-1.7.0
+rootdir: <repo>
+configfile: pytest.ini
+collected 20 items
+
+tests\test_constraints.py ...............                                [ 75%]
+tests\test_migration.py .....                                            [100%]
+
+============================= 20 passed in 10.20s =============================
