@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict cG86ZLUOqvfelxeO1yfyOYdSI2glPr0xTNWSSfRtANQ6v9NuMvxwgZgBfDaNDlf
+\restrict kbfe8R0afG8EKColjpToRVHZX7AtpeblWIAJcMbeUGkaNBkA6TrQnlC45suY6kN
 
 -- Dumped from database version 16.15
 -- Dumped by pg_dump version 16.15
@@ -150,5 +150,5 @@ ALTER TABLE ONLY public.acad_course_session
 -- PostgreSQL database dump complete
 --
 
-\unrestrict cG86ZLUOqvfelxeO1yfyOYdSI2glPr0xTNWSSfRtANQ6v9NuMvxwgZgBfDaNDlf
+\unrestrict kbfe8R0afG8EKColjpToRVHZX7AtpeblWIAJcMbeUGkaNBkA6TrQnlC45suY6kN
 

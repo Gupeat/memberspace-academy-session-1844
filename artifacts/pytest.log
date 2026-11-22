@@ -1,7 +1,7 @@
 $ AC1 end_at and signup_close constraints
 python -m pytest -q tests/test_constraints.py -k end_at or signup_close
 ..                                                                       [100%]
-2 passed, 13 deselected in 0.29s
+2 passed, 13 deselected in 0.31s
 
 $ AC2 session_no uniqueness
 python -m pytest -q tests/test_constraints.py -k duplicate_session_no or different_courses
@@ -9,21 +9,21 @@ python -m pytest -q tests/test_constraints.py -k duplicate_session_no or differe
 2 passed, 13 deselected in 0.31s
 
 $ AC3 upgrade/downgrade on empty database
-python -m pytest -q tests/test_migration.py -k upgrade_downgrade_cycle
-..                                                                       [100%]
-2 passed, 3 deselected in 0.42s
+python -m pytest -q tests/test_migration.py::test_upgrade_downgrade_cycle
+.                                                                        [100%]
+1 passed in 0.27s
 
 $ AC3 upgrade/downgrade on seeded database
-python -m pytest -q tests/test_migration.py -k seeded_upgrade_downgrade_cycle
+python -m pytest -q tests/test_migration.py::test_seeded_upgrade_downgrade_cycle
 .                                                                        [100%]
-1 passed, 4 deselected in 0.26s
+1 passed in 0.26s
 
 $ AC3 alembic check
-python -m pytest -q tests/test_migration.py -k alembic_check
+python -m pytest -q tests/test_migration.py::test_alembic_check_has_no_drift
 .                                                                        [100%]
-1 passed, 4 deselected in 1.45s
+1 passed in 1.41s
 
 $ Full regression
 python -m pytest -q tests
 ....................                                                     [100%]
-20 passed in 3.22s
+20 passed in 3.18s

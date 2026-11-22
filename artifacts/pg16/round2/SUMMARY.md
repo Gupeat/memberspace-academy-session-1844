@@ -1,7 +1,7 @@
 # PostgreSQL 16 acceptance · round2
 
 - PostgreSQL: 16.15 at 127.0.0.1:55432 / database clawhunt_1844
-- Generated: 2026-11-22T04:09:55Z
+- Generated: 2026-11-22T05:12:31Z
 - Tests: 20 passed
 - Empty-DB upgrade/downgrade: PASS
 - Seeded-DB upgrade/downgrade: PASS

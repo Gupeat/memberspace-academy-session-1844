@@ -40,6 +40,12 @@ def main() -> int:
     env["PATH"] = str(PG_BIN) + os.pathsep + env.get("PATH", "")
     env["ACADEMY_DB_URL"] = PG_URL
     env["PYTHONIOENCODING"] = "utf-8"
+    for binary in (PSQL, PG_DUMP):
+        if not binary.is_file():
+            raise SystemExit(
+                f"not found: {binary}\n"
+                "Set PG_BIN to the PostgreSQL 16 bin directory before running this script."
+            )
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
 
     exists = run([str(PSQL), "-h", "127.0.0.1", "-p", "55432", "-U", "postgres", "-d", "postgres", "-tAc",

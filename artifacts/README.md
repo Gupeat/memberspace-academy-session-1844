@@ -4,12 +4,12 @@
 
 ## 文件
 
-- `ACCEPTANCE.md` / `ACCEPTANCE.json`：验收汇总。默认是 **SQLite 快速回归**口径（未设置 `TEST_DATABASE_URL`）；PostgreSQL 16 两轮证据单独列在第 22–29 行。
+- `ACCEPTANCE.md` / `ACCEPTANCE.json`：验收汇总。默认是 **SQLite 快速回归**口径（未设置 `TEST_DATABASE_URL`）；PostgreSQL 16 两轮证据单独列在 `## PostgreSQL 16 evidence` 段。
 - `pytest.log`：验收脚本执行时的完整 pytest 输出。
-- `pg16/round1/`、`pg16/round2/`：PostgreSQL 16.15 两轮，每轮 28 个步骤日志（`00-*` 到 `27-*`）和 `SUMMARY.md`。
+- `pg16/round1/`、`pg16/round2/`：PostgreSQL 16.15 两轮（round1 2026-11-22T05:12:01Z、round2 2026-11-22T05:12:31Z），每轮 28 个步骤日志（`00-*` 到 `27-*`）和 `SUMMARY.md`。
   - `22-pytest-seeded-pg16.log` 是专用 seeded 用例输出，含 `seeded cycle database: postgresql` 和 `1 passed`。
   - `SUMMARY.md` 的 Overall PASS 需要所有步骤 exit 0、约束/表/行数断言通过、`alembic check` 通过。
-- `schema-postgres.sql`：从实际 PostgreSQL 16 数据库导出的 DDL，含 13 CHECK、2 UNIQUE、2 索引、1 FK。
+- `schema-postgres.sql`：从实际 PostgreSQL 16 数据库导出的 DDL，含 13 CHECK、2 UNIQUE、2 个显式索引、1 FK。`pg_dump` 会写入随机 restrict token，因此重跑时字节哈希可能变化，大小和结构不变。
 - `reverse-drill.log`：两个反向变异的演练记录；两个变异都必须被测试检出（DETECTED）。
 
 ## 复现
@@ -19,14 +19,19 @@
 ```powershell
 python -m pip install -r requirements.txt
 python -m pytest -q tests
-python scripts/run_acceptance.py
+
+# 先跑两轮，脚本会自动建库；PG_BIN 必须指向 PostgreSQL 16 的 bin 目录
+$env:PG_BIN = "C:\path\to\pgsql\bin"
 python scripts/run_pg16_round.py --label round1
 python scripts/run_pg16_round.py --label round2
+
+# 验收会检查两轮 SUMMARY 是否存在；DDL 也使用 PG_BIN
+python scripts/run_acceptance.py
 python scripts/export_pg_ddl.py
 python scripts/reverse_drill.py
 ```
 
-PostgreSQL 两轮需要本机有一个可连接的 PostgreSQL 16 实例（默认 `127.0.0.1:55432`，用户 `postgres`），并能创建 `clawhunt_1844`。SQLite 快速回归不需要 PostgreSQL。
+PostgreSQL 两轮需要本机有一个可连接的 PostgreSQL 16 实例（默认 `127.0.0.1:55432`，用户 `postgres`），并能创建 `clawhunt_1844`；需要 `PG_BIN` 指向该实例的 `bin` 目录。脚本会先做 psql 探活和建库，全部成功后才清理该轮旧日志；失败时既有证据原样保留。**`run_pg16_round.py` 会执行 `DROP SCHEMA public CASCADE`，只能指向专用库。** SQLite 快速回归不需要 PostgreSQL。
 
 ## 边界
 

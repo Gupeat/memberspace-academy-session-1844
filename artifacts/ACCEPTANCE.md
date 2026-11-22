@@ -1,12 +1,13 @@
 # Acceptance report · #1844
 
-- Generated: 2026-11-22T04:10:58Z
+- Generated: 2026-11-22T05:15:58Z
 - Database: SQLite quick regression (when TEST_DATABASE_URL is unset)
 - SQLite quick regression tests: 20 passed
 - AC1 end_at / signup_close constraints: PASS
 - AC2 session_no uniqueness: PASS
 - AC3 SQLite quick upgrade/downgrade (empty, seeded, no drift): PASS
 - SQLite quick full regression: PASS
+- PostgreSQL 16 evidence present: PASS
 
 ## Commands and results
 

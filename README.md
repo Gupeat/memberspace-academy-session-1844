@@ -1,5 +1,7 @@
 # #1844 · 学院课期表 acad_course_session 模型与迁移
 
+**Version v1.0.3**
+
 本仓库交付会员空间平台学院课期表 **acad_course_session** 的 SQLAlchemy 2.x 模型与 Alembic 迁移。范围严格限定为模型、迁移、约束和验证；不包含状态自动推进、接口或业务服务。
 
 ## 交付内容
@@ -7,7 +9,7 @@
 | 路径 | 说明 |
 | --- | --- |
 | `app/db.py` | SQLAlchemy `Base`、命名约定、统一系统字段 mixin、引擎工厂（SQLite 打开外键） |
-| `app/academy/models.py` | `AcadCourseSession` 模型、13 个 CHECK、2 个唯一约束、2 个索引、ORM 校验器 |
+| `app/academy/models.py` | `AcadCourseSession` 模型、13 个 CHECK、2 个唯一约束、2 个显式索引、ORM 校验器 |
 | `app/academy/constants.py` | 六种状态、字段长度与容量边界 |
 | `alembic/versions/0001_acad_course_session.py` | 建表/索引/约束与 downgrade |
 | `alembic.ini`、`alembic/env.py` | 从 `ACADEMY_DB_URL` 读取连接，排除外部依赖表 `acad_course` 的 autogenerate 漂移 |
@@ -90,7 +92,7 @@
 
 ## 运行
 
-环境：Python 3.12、SQLAlchemy 2.x、Alembic 1.x、pytest；PostgreSQL 16 用于完整迁移验证。
+环境：Python 3.11+（开发/验收环境 3.12）、SQLAlchemy 2.x、Alembic 1.x、pytest；PostgreSQL 16 用于完整迁移验证。
 
 ```powershell
 python -m pip install -r requirements.txt
@@ -100,16 +102,19 @@ $env:ACADEMY_DB_URL = "sqlite:///./acad_sessions.db"
 python -m alembic upgrade head
 python -m pytest -q tests
 
-# PostgreSQL 16 全套（先启动 127.0.0.1:55432 的实例）
+# PostgreSQL 16 两轮（先启动 127.0.0.1:55432 的实例；脚本会自动建库）
+# PG_BIN 必须指向 PostgreSQL 16 的 bin 目录（run_pg16_round.py 与 export_pg_ddl.py 都读取它）
+# 警告：脚本会 DROP SCHEMA public CASCADE；必须使用专用库，不能指向有业务数据的库
+$env:PG_BIN = "C:\path\to\pgsql\bin"
+python scripts/run_pg16_round.py --label round1
+python scripts/run_pg16_round.py --label round2
+
+# 可选：对已存在的 clawhunt_1844 直接跑全套测试
 $env:TEST_DATABASE_URL = "postgresql+psycopg2://postgres@127.0.0.1:55432/clawhunt_1844"
 $env:ACADEMY_DB_URL = $env:TEST_DATABASE_URL
 python -m pytest -q tests
 
-# 两轮可复现证据（自动建库 clawhunt_1844）
-python scripts/run_pg16_round.py --label round1
-python scripts/run_pg16_round.py --label round2
-
-# 验收、DDL 与变异演练
+# 验收（会检查两轮 SUMMARY 是否存在）、DDL 与变异演练
 python scripts/run_acceptance.py
 python scripts/export_pg_ddl.py
 python scripts/reverse_drill.py
@@ -118,16 +123,17 @@ python scripts/reverse_drill.py
 ## 验收结果
 
 - **SQLite 快速回归**：未设置 `TEST_DATABASE_URL`，**20 passed**；这是日常回归口径。
-- **PostgreSQL 16.15 两轮**：round1 2026-11-22T04:09:25Z、round2 2026-11-22T04:09:55Z，均 Overall PASS；每轮 28 步、全部 exit 0，测试 **20 passed**。
+- **PostgreSQL 16.15 两轮**：round1 2026-11-22T05:12:01Z、round2 2026-11-22T05:12:31Z，均 Overall PASS；每轮 28 步、全部 exit 0，测试 **20 passed**。
   - 空库 upgrade → 1 张 session 表、23 列、13 CHECK → downgrade 后 session 0 行、acad_course 保留 → 再次 upgrade PASS。
   - 种子库（2 个 course、1 个 session）upgrade → downgrade 后 session 表消失、course 仍 2 行 → 再次 upgrade 后 session 表恢复、course 仍 2 行。
   - 两轮均执行 `alembic check`，无模型/迁移漂移。
   - 每轮包含专用的 `pytest-seeded-pg16` 步骤：`seeded cycle database: postgresql`、`1 passed`，证明 seeded 用例确实运行在 PostgreSQL，而不是 SQLite。
+- 每轮脚本先检查 `PG_BIN`、psql 可连接、目标库可创建，然后才清理旧日志；失败时保留既有证据并以 exit 2 退出。`run_acceptance.py` 会检查两轮 SUMMARY 是否存在，缺失时 `ok=false`。
 - AC1：`end_at <= start_at` 与 `signup_close_at > start_at` 插入均被数据库拒绝。
 - AC2：同课程重复 `session_no` 被联合唯一约束拒绝；不同课程可重复。
 - AC3：有 `TEST_DATABASE_URL` 时 seeded 用例读取配置库；未配置时使用临时 SQLite；空库与种子库 upgrade/downgrade 均成功，downgrade 保留 `acad_course`。
 - 反向变异：A 将 `end_at > start_at` 放宽为 `>=`、B 删除 `(course_id, session_no)` 唯一约束，测试均失败（DETECTED）。
-- DDL：`artifacts/schema-postgres.sql`，含 13 CHECK、2 UNIQUE、2 索引、FK。
+- DDL：`artifacts/schema-postgres.sql`，含 13 CHECK、2 UNIQUE、2 个显式索引、1 FK；唯一约束会自带索引，`pg_indexes` 总数为 5。
 
 证据文件：
 

@@ -10,7 +10,8 @@
     "artifacts/pg16/round1/SUMMARY.md",
     "artifacts/pg16/round2/SUMMARY.md"
   ],
-  "generated_at": "2026-11-22T04:10:58Z",
+  "postgresql_evidence_present": true,
+  "generated_at": "2026-11-22T05:15:58Z",
   "steps": [
     {
       "name": "AC1 end_at and signup_close constraints",
@@ -24,17 +25,17 @@
     },
     {
       "name": "AC3 upgrade/downgrade on empty database",
-      "command": "python -m pytest -q tests/test_migration.py -k upgrade_downgrade_cycle",
+      "command": "python -m pytest -q tests/test_migration.py::test_upgrade_downgrade_cycle",
       "exit": 0
     },
     {
       "name": "AC3 upgrade/downgrade on seeded database",
-      "command": "python -m pytest -q tests/test_migration.py -k seeded_upgrade_downgrade_cycle",
+      "command": "python -m pytest -q tests/test_migration.py::test_seeded_upgrade_downgrade_cycle",
       "exit": 0
     },
     {
       "name": "AC3 alembic check",
-      "command": "python -m pytest -q tests/test_migration.py -k alembic_check",
+      "command": "python -m pytest -q tests/test_migration.py::test_alembic_check_has_no_drift",
       "exit": 0
     },
     {

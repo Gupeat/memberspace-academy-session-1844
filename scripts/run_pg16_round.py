@@ -27,9 +27,10 @@ SESSION_ID = "33333333-3333-3333-3333-333333333333"
 def redact(text: str) -> str:
     text = text.replace(str(REPO_ROOT), "<repo>")
     text = text.replace(str(Path(os.environ.get("TEMP", ""))), "<tmp>")
-    home = str(Path.home())
-    text = text.replace(home, "<home>").replace(home.replace("\\", "/"), "<home>")
-    text = text.replace("pytest-of-" + Path.home().name, "pytest-of-user")
+    home = os.environ.get("USERPROFILE") or os.environ.get("HOME") or ""
+    if home:
+        text = text.replace(home, "<home>").replace(home.replace("\\", "/"), "<home>")
+        text = text.replace("pytest-of-" + Path(home).name, "pytest-of-user")
     return text
 
 
@@ -73,6 +74,52 @@ def main() -> int:
     parser.add_argument("--label", default="round")
     args = parser.parse_args()
 
+    env = os.environ.copy()
+    env["PATH"] = str(PG_BIN) + os.pathsep + env.get("PATH", "")
+    env["ACADEMY_DB_URL"] = PG_URL
+    env["TEST_DATABASE_URL"] = PG_URL
+    env["PYTHONIOENCODING"] = "utf-8"
+
+    if not PSQL.is_file():
+        print(
+            f"psql not found: {PSQL}\n"
+            "Set PG_BIN to the PostgreSQL 16 bin directory before running this script. "
+            "Existing evidence was left untouched.",
+            file=sys.stderr,
+        )
+        return 2
+
+    code, out = run(
+        [str(PSQL), "-h", "127.0.0.1", "-p", "55432", "-U", "postgres", "-d", "postgres", "-tAc",
+         "SELECT 1 FROM pg_database WHERE datname='clawhunt_1844';"],
+        env,
+    )
+    if code != 0:
+        print(
+            f"cannot reach PostgreSQL at 127.0.0.1:55432; existing evidence was left untouched.\n{out}",
+            file=sys.stderr,
+        )
+        return 2
+    if "1" not in out:
+        code, out = run(
+            [str(PSQL), "-h", "127.0.0.1", "-p", "55432", "-U", "postgres", "-d", "postgres", "-c",
+             "CREATE DATABASE clawhunt_1844;"],
+            env,
+        )
+        if code != 0:
+            print(f"cannot create database clawhunt_1844; existing evidence was left untouched.\n{out}", file=sys.stderr)
+            return 2
+
+    code, server_version = run(
+        [str(PSQL), "-h", "127.0.0.1", "-p", "55432", "-U", "postgres", "-d", "postgres", "-tAc",
+         "SHOW server_version;"],
+        env,
+    )
+    if code != 0:
+        print(f"cannot read PostgreSQL version; existing evidence was left untouched.\n{server_version}", file=sys.stderr)
+        return 2
+    server_version = server_version.strip()
+
     out_dir = REPO_ROOT / "artifacts" / "pg16" / args.label
     out_dir.mkdir(parents=True, exist_ok=True)
     for old_log in out_dir.glob("*.log"):
@@ -80,23 +127,6 @@ def main() -> int:
     old_summary = out_dir / "SUMMARY.md"
     if old_summary.exists():
         old_summary.unlink()
-    env = os.environ.copy()
-    env["PATH"] = str(PG_BIN) + os.pathsep + env.get("PATH", "")
-    env["ACADEMY_DB_URL"] = PG_URL
-    env["TEST_DATABASE_URL"] = PG_URL
-    env["PYTHONIOENCODING"] = "utf-8"
-
-    code, out = run(
-        [str(PSQL), "-h", "127.0.0.1", "-p", "55432", "-U", "postgres", "-d", "postgres", "-tAc",
-         "SELECT 1 FROM pg_database WHERE datname='clawhunt_1844';"],
-        env,
-    )
-    if "1" not in out:
-        run(
-            [str(PSQL), "-h", "127.0.0.1", "-p", "55432", "-U", "postgres", "-d", "postgres", "-c",
-             "CREATE DATABASE clawhunt_1844;"],
-            env,
-        )
 
     steps: list[tuple[str, int, str]] = []
 
@@ -231,7 +261,7 @@ def main() -> int:
     summary = [
         f"# PostgreSQL 16 acceptance · {args.label}",
         "",
-        f"- PostgreSQL: 16.15 at 127.0.0.1:55432 / database {PSQL_DB}",
+        f"- PostgreSQL: {server_version} at 127.0.0.1:55432 / database {PSQL_DB}",
         f"- Generated: {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}",
         f"- Tests: {passed} passed",
         f"- Empty-DB upgrade/downgrade: {'PASS' if empty_ok else 'FAIL'}",

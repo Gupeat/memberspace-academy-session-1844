@@ -22,9 +22,10 @@ PG_EVIDENCE = [
 def redact(text: str, tmp: str) -> str:
     text = text.replace(str(REPO_ROOT), "<repo>")
     text = text.replace(tmp, "<tmp>")
-    home = str(Path.home())
-    text = text.replace(home, "<home>").replace(home.replace("\\", "/"), "<home>")
-    text = text.replace("pytest-of-" + Path.home().name, "pytest-of-user")
+    home = os.environ.get("USERPROFILE") or os.environ.get("HOME") or ""
+    if home:
+        text = text.replace(home, "<home>").replace(home.replace("\\", "/"), "<home>")
+        text = text.replace("pytest-of-" + Path(home).name, "pytest-of-user")
     return text
 
 
@@ -70,9 +71,9 @@ def main() -> int:
         step("AC2 session_no uniqueness", [PYTHON, "-m", "pytest", "-q", "tests/test_constraints.py", "-k", "duplicate_session_no or different_courses"]),
     ]
     ac3 = [
-        step("AC3 upgrade/downgrade on empty database", [PYTHON, "-m", "pytest", "-q", "tests/test_migration.py", "-k", "upgrade_downgrade_cycle"]),
-        step("AC3 upgrade/downgrade on seeded database", [PYTHON, "-m", "pytest", "-q", "tests/test_migration.py", "-k", "seeded_upgrade_downgrade_cycle"]),
-        step("AC3 alembic check", [PYTHON, "-m", "pytest", "-q", "tests/test_migration.py", "-k", "alembic_check"]),
+        step("AC3 upgrade/downgrade on empty database", [PYTHON, "-m", "pytest", "-q", "tests/test_migration.py::test_upgrade_downgrade_cycle"]),
+        step("AC3 upgrade/downgrade on seeded database", [PYTHON, "-m", "pytest", "-q", "tests/test_migration.py::test_seeded_upgrade_downgrade_cycle"]),
+        step("AC3 alembic check", [PYTHON, "-m", "pytest", "-q", "tests/test_migration.py::test_alembic_check_has_no_drift"]),
     ]
     full = step("Full regression", [PYTHON, "-m", "pytest", "-q", "tests"])
 
@@ -83,7 +84,8 @@ def main() -> int:
     matches = re.findall(r"(\d+) passed", combined)
     if matches:
         passed = int(matches[-1])
-    ok = not any(ac1) and not any(ac2) and not any(ac3) and full == 0
+    pg_evidence_present = all((REPO_ROOT / path).is_file() for path in PG_EVIDENCE)
+    ok = not any(ac1) and not any(ac2) and not any(ac3) and full == 0 and pg_evidence_present
     summary = {
         "ok": ok,
         "passed": passed,
@@ -93,6 +95,7 @@ def main() -> int:
         "full": full == 0,
         "database": "sqlite-quick",
         "postgresql_evidence": PG_EVIDENCE,
+        "postgresql_evidence_present": pg_evidence_present,
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "steps": steps,
     }
@@ -107,6 +110,7 @@ def main() -> int:
         f"- AC2 session_no uniqueness: {'PASS' if summary['ac2'] else 'FAIL'}",
         f"- AC3 SQLite quick upgrade/downgrade (empty, seeded, no drift): {'PASS' if summary['ac3'] else 'FAIL'}",
         f"- SQLite quick full regression: {'PASS' if summary['full'] else 'FAIL'}",
+        f"- PostgreSQL 16 evidence present: {'PASS' if pg_evidence_present else 'FAIL'}",
         "",
         "## Commands and results",
         "",

@@ -38,5 +38,5 @@
 ## 4. 本仓库的边界
 
 - 不修改 #1839 的代码；不声称两个独立仓库可以直接合并。
-- 单仓的空库/种子库 upgrade/downgrade、20 tests、13 CHECK、2 UNIQUE、2 索引均已验证，见 `artifacts/`。
+- 单仓的空库/种子库 upgrade/downgrade、20 tests、13 CHECK、2 UNIQUE、2 个显式索引均已验证，见 `artifacts/`。
 - 合并补丁属于集成方职责；若平台要求本仓库直接合入，需先完成第 3 节的三处修改并重跑迁移与测试。
